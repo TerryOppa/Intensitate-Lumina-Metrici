@@ -246,6 +246,7 @@ public class Lumina2 extends Application {
         } else {
             cloudVisibility = 0.3 + (lux - 1000) / 1000.0 * (1.0 - 0.3);
         }
+        //end
 
         cloud1.setOpacity(cloudVisibility);
         cloud2.setOpacity(cloudVisibility);
@@ -253,5 +254,7 @@ public class Lumina2 extends Application {
 
     public static void main(String[] args) {
         launch(args);
+        
     }
 }
+
