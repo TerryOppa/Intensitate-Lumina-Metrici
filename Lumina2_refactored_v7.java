@@ -31,6 +31,7 @@ import javafx.util.Duration;
 import javax.imageio.ImageIO;
 import java.io.File;
 import java.io.FileOutputStream;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -53,12 +54,8 @@ public class Lumina2 extends Application {
     private Group cloud2;
     private SerialComm serialComm;
 
-    private Group starGroup1;
-    private Group starGroup2;
-    private Group starGroup3;
-    private Group starGroup4;
-    private Group starGroup5;
-    private Group starGroup6;
+    // Stele
+    private final List<Group> starGroups = new ArrayList<>();
 
     // NOILE CONTROALE
     private Slider testSlider;
@@ -86,89 +83,35 @@ public class Lumina2 extends Application {
     private Timeline sunAnimation;
     private Timeline moonAnimation;
 
+    // Constante pentru lux și vizibilități
+    private static final double LUX_MIN = 0.0;
+    private static final double LUX_MAX = 6000.0;
+
+    private static final double STAR_FULL_VISIBLE_LUX = 1000.0;
+    private static final double STAR_HIDDEN_LUX = 2000.0;
+
+    private static final double CLOUD_MIN_LUX = 1000.0;
+    private static final double CLOUD_MAX_LUX = 2000.0;
+    private static final double CLOUD_MIN_VISIBILITY = 0.3;
+    private static final double CLOUD_MAX_VISIBILITY = 1.0;
+
+    private static final double SUN_COLOR_THRESHOLD_LUX = 4000.0;
+
     @Override
     public void start(Stage primaryStage) {
         root = new BorderPane();
         animationPane = new Pane();
         animationPane.setPrefSize(WIDTH, HEIGHT);
 
-        // STELE
-        Circle star1 = new Circle(2, Color.WHITE);
-        Circle star2 = new Circle(2, Color.WHITE);
-        Circle star3 = new Circle(2, Color.WHITE);
-        Circle star4 = new Circle(2, Color.WHITE);
-        Circle star5 = new Circle(2, Color.WHITE);
-        Circle star6 = new Circle(2, Color.WHITE);
-        setupStarTwinkle(star1);
-        setupStarTwinkle(star2);
-        setupStarTwinkle(star3);
-        setupStarTwinkle(star4);
-        setupStarTwinkle(star5);
-        setupStarTwinkle(star6);
+        createStars();
+        createClouds();
+        createSunAndMoon();
+        createGround();
+        createAlertLabel();
 
-        starGroup1 = new Group(star1);
-        starGroup1.setTranslateX(200);
-        starGroup1.setTranslateY(300);
-        starGroup1.setOpacity(0);
+        animationPane.getChildren().addAll(starGroups);
+        animationPane.getChildren().addAll(sun, moon, ground, cloud1, cloud2, alertLabel);
 
-        starGroup2 = new Group(star2);
-        starGroup2.setTranslateX(350);
-        starGroup2.setTranslateY(500);
-        starGroup2.setOpacity(0);
-
-        starGroup3 = new Group(star3);
-        starGroup3.setTranslateX(500);
-        starGroup3.setTranslateY(400);
-        starGroup3.setOpacity(0);
-
-        starGroup4 = new Group(star4);
-        starGroup4.setTranslateX(700);
-        starGroup4.setTranslateY(500);
-        starGroup4.setOpacity(0);
-
-        starGroup5 = new Group(star5);
-        starGroup5.setTranslateX(1000);
-        starGroup5.setTranslateY(200);
-        starGroup5.setOpacity(0);
-
-        starGroup6 = new Group(star6);
-        starGroup6.setTranslateX(1400);
-        starGroup6.setTranslateY(500);
-        starGroup6.setOpacity(0);
-
-        // NORI
-        cloud1 = createCloud(-100, 100);
-        cloud2 = createCloud(WIDTH + 100, 200);
-
-        // SOARE + LUNĂ
-        sun = new Circle(10, Color.GOLD);
-        sun.setTranslateX(WIDTH / 2);
-        sun.setTranslateY(HEIGHT);
-
-        moon = new Circle(10, Color.LIGHTGRAY);
-        moon.setTranslateX(WIDTH / 2);
-        moon.setTranslateY(HEIGHT);
-
-        // SOL
-        ground = new Rectangle(0, HEIGHT - GROUND_HEIGHT, WIDTH, GROUND_HEIGHT);
-        ground.setFill(Color.GREEN);
-
-        // LABEL ALERTĂ SCHIMBĂRI BRUȘTE
-        alertLabel = new Label();
-        alertLabel.setTextFill(Color.RED);
-        alertLabel.setStyle("-fx-font-size: 24px; -fx-font-weight: bold;");
-        alertLabel.setVisible(false);
-        alertLabel.setLayoutX(20);
-        alertLabel.setLayoutY(20);
-
-        animationPane.getChildren().addAll(
-                starGroup1, starGroup2, starGroup3,
-                starGroup4, starGroup5, starGroup6,
-                sun, moon, ground, cloud1, cloud2,
-                alertLabel
-        );
-
-        // Panouri UI
         root.setCenter(animationPane);
         root.setBottom(createControlPanel());
         root.setRight(createRightPanel());
@@ -181,19 +124,79 @@ public class Lumina2 extends Application {
         setupCloudMovement(cloud1, true);
         setupCloudMovement(cloud2, false);
 
-        // Timeline care adaugă un punct pe grafic o dată pe secundă
-        sampleTimeline = new Timeline(
-                new KeyFrame(Duration.seconds(1), e -> addLuxToHistory(currentLux))
-        );
-        sampleTimeline.setCycleCount(Timeline.INDEFINITE);
-        sampleTimeline.play();
-
+        setupSamplingTimeline();
         new Thread(this::setupSerialCommunication).start();
+    }
+
+    // === Inițializare elemente scenă ===
+
+    private void createStars() {
+        Circle star1 = createStarCircle();
+        Circle star2 = createStarCircle();
+        Circle star3 = createStarCircle();
+        Circle star4 = createStarCircle();
+        Circle star5 = createStarCircle();
+        Circle star6 = createStarCircle();
+
+        setupStarTwinkle(star1);
+        setupStarTwinkle(star2);
+        setupStarTwinkle(star3);
+        setupStarTwinkle(star4);
+        setupStarTwinkle(star5);
+        setupStarTwinkle(star6);
+
+        starGroups.add(createStarGroup(star1, 200, 300));
+        starGroups.add(createStarGroup(star2, 350, 500));
+        starGroups.add(createStarGroup(star3, 500, 400));
+        starGroups.add(createStarGroup(star4, 700, 500));
+        starGroups.add(createStarGroup(star5, 1000, 200));
+        starGroups.add(createStarGroup(star6, 1400, 500));
+    }
+
+    private Circle createStarCircle() {
+        return new Circle(2, Color.WHITE);
+    }
+
+    private Group createStarGroup(Circle star, double x, double y) {
+        Group group = new Group(star);
+        group.setTranslateX(x);
+        group.setTranslateY(y);
+        group.setOpacity(0);
+        return group;
+    }
+
+    private void createClouds() {
+        cloud1 = createCloud(-100, 100);
+        cloud2 = createCloud(WIDTH + 100, 200);
+    }
+
+    private void createSunAndMoon() {
+        sun = new Circle(10, Color.GOLD);
+        sun.setTranslateX(WIDTH / 2);
+        sun.setTranslateY(HEIGHT);
+
+        moon = new Circle(10, Color.LIGHTGRAY);
+        moon.setTranslateX(WIDTH / 2);
+        moon.setTranslateY(HEIGHT);
+    }
+
+    private void createGround() {
+        ground = new Rectangle(0, HEIGHT - GROUND_HEIGHT, WIDTH, GROUND_HEIGHT);
+        ground.setFill(Color.GREEN);
+    }
+
+    private void createAlertLabel() {
+        alertLabel = new Label();
+        alertLabel.setTextFill(Color.RED);
+        alertLabel.setStyle("-fx-font-size: 24px; -fx-font-weight: bold;");
+        alertLabel.setVisible(false);
+        alertLabel.setLayoutX(20);
+        alertLabel.setLayoutY(20);
     }
 
     // Panou jos: slider + mod test
     private HBox createControlPanel() {
-        testSlider = new Slider(0, 6000, 0);
+        testSlider = new Slider(0, LUX_MAX, 0);
         testSlider.setShowTickMarks(true);
         testSlider.setShowTickLabels(true);
         testSlider.setMajorTickUnit(1000);
@@ -205,12 +208,9 @@ public class Lumina2 extends Application {
         testModeCheckBox = new CheckBox("Mod Test (simulare luminozitate)");
         testModeCheckBox.setSelected(false);
 
-        // Când sliderul se mișcă și Mod Test e activ -> actualizăm scena,
-        // iar valoarea va fi preluată de timeline-ul de 1s
         testSlider.valueProperty().addListener((obs, oldVal, newVal) -> {
-            if (testModeCheckBox != null && testModeCheckBox.isSelected()) {
-                double lux = newVal.doubleValue();
-                handleNewLuxValue((float) lux, true);
+            if (isTestModeEnabled()) {
+                handleNewLuxValue(newVal.floatValue());
             }
         });
 
@@ -266,6 +266,16 @@ public class Lumina2 extends Application {
         twinkle.play();
     }
 
+    private void setupSamplingTimeline() {
+        sampleTimeline = new Timeline(
+                new KeyFrame(Duration.seconds(1), e -> addLuxToHistory(currentLux))
+        );
+        sampleTimeline.setCycleCount(Timeline.INDEFINITE);
+        sampleTimeline.play();
+    }
+
+    // === Comunicare serial ===
+
     private void setupSerialCommunication() {
         serialComm = new SerialComm("COM3", 9600);
         if (!serialComm.openPort()) {
@@ -273,25 +283,45 @@ public class Lumina2 extends Application {
             return;
         }
 
-        serialComm.addDataListener(data -> Platform.runLater(() -> {
-            try {
-                float lux = Float.parseFloat(data.trim());
-
-                // Dacă NU suntem în Mod Test, folosim senzorul real
-                if (testModeCheckBox == null || !testModeCheckBox.isSelected()) {
-                    handleNewLuxValue(lux, false);
-                }
-            } catch (NumberFormatException ignored) {
-            }
-        }));
+        serialComm.addDataListener(this::handleSerialData);
     }
 
-    // Unificăm tratarea valorilor de lux (din senzor sau slider)
-    // -> actualizăm scena + luxul curent; graficul este alimentat separat, la 1s
-    private void handleNewLuxValue(float lux, boolean simulated) {
-        lux = (float) Math.max(0, Math.min(lux, 6000));
-        currentLux = lux;       // memorăm ultima valoare
-        updateScene(lux);       // actualizăm animația imediat
+    private void handleSerialData(String data) {
+        Platform.runLater(() -> processSerialDataOnFxThread(data));
+    }
+
+    private void processSerialDataOnFxThread(String data) {
+        if (isTestModeEnabled()) {
+            return;
+        }
+
+        Float lux = parseLux(data);
+        if (lux != null) {
+            handleNewLuxValue(lux);
+        }
+    }
+
+    private Float parseLux(String data) {
+        try {
+            return Float.parseFloat(data.trim());
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    private boolean isTestModeEnabled() {
+        return testModeCheckBox != null && testModeCheckBox.isSelected();
+    }
+
+    // Unificăm tratarea valorilor de lux
+    private void handleNewLuxValue(float lux) {
+        double clampedLux = clampLux(lux);
+        currentLux = clampedLux;
+        updateScene((float) clampedLux);
+    }
+
+    private double clampLux(double lux) {
+        return Math.max(LUX_MIN, Math.min(lux, LUX_MAX));
     }
 
     private void setupCloudMovement(Group cloud, boolean leftToRight) {
@@ -318,13 +348,28 @@ public class Lumina2 extends Application {
         moveTimeline.play();
     }
 
-    private void updateScene(float lux) {
-        lux = (float) Math.max(0, Math.min(lux, 6000));
-        double frac = lux / 6000.0;
+    // === Actualizare scenă ===
 
+    private void updateScene(float lux) {
+        double clampedLux = clampLux(lux);
+        double frac = clampedLux / LUX_MAX;
+
+        updateSun(clampedLux);
+        updateMoon(clampedLux);
+        updateSkyAndGround(frac);
+        updateSunColor(clampedLux);
+        updateStars(clampedLux);
+        updateClouds(clampedLux);
+    }
+
+    private void updateSun(double lux) {
         double sunFrac = Math.max(0, (lux - 1500) / 4500.0);
         double sunY = HEIGHT - (sunFrac * HEIGHT - 200);
         double sunRadius = 10 + 50 * sunFrac;
+
+        if (sunAnimation != null) {
+            sunAnimation.stop();
+        }
 
         sunAnimation = new Timeline(
                 new KeyFrame(Duration.seconds(0.1),
@@ -333,10 +378,16 @@ public class Lumina2 extends Application {
                 )
         );
         sunAnimation.play();
+    }
 
+    private void updateMoon(double lux) {
         double moonFrac = Math.max(0, (1500 - lux) / 1500.0);
         double moonY = 200 + (1 - moonFrac) * (HEIGHT - GROUND_HEIGHT);
         double moonRadius = 10 + 30 * moonFrac;
+
+        if (moonAnimation != null) {
+            moonAnimation.stop();
+        }
 
         moonAnimation = new Timeline(
                 new KeyFrame(Duration.seconds(0.1),
@@ -345,7 +396,9 @@ public class Lumina2 extends Application {
                 )
         );
         moonAnimation.play();
+    }
 
+    private void updateSkyAndGround(double frac) {
         Color startColorSky = Color.DARKBLUE;
         Color endColorSky = Color.LIGHTSKYBLUE;
         Color backgroundColor = startColorSky.interpolate(endColorSky, frac);
@@ -360,45 +413,63 @@ public class Lumina2 extends Application {
                 (int) (backgroundColor.getRed() * 255) + "," +
                 (int) (backgroundColor.getGreen() * 255) + "," +
                 (int) (backgroundColor.getBlue() * 255) + ");");
+    }
 
-        if (lux < 4000) {
+    private void updateSunColor(double lux) {
+        if (lux < SUN_COLOR_THRESHOLD_LUX) {
             sun.setFill(Color.GOLD);
         } else {
             sun.setFill(Color.ORANGE);
         }
+    }
 
-        double starVisibility;
-        if (lux < 1000) {
-            starVisibility = 1.0;
-        } else if (lux > 2000) {
-            starVisibility = 0.0;
-        } else {
-            starVisibility = 1.0 - (lux - 1000) / 1000.0;
+    private void updateStars(double lux) {
+        double starVisibility = computeClampedLinear(
+                lux,
+                STAR_FULL_VISIBLE_LUX,
+                STAR_HIDDEN_LUX,
+                1.0,
+                0.0
+        );
+
+        for (Group starGroup : starGroups) {
+            starGroup.setOpacity(starVisibility);
         }
+    }
 
-        starGroup1.setOpacity(starVisibility);
-        starGroup2.setOpacity(starVisibility);
-        starGroup3.setOpacity(starVisibility);
-        starGroup4.setOpacity(starVisibility);
-        starGroup5.setOpacity(starVisibility);
-        starGroup6.setOpacity(starVisibility);
-
-        double cloudVisibility;
-        if (lux < 1000) {
-            cloudVisibility = 0.3;
-        } else if (lux > 2000) {
-            cloudVisibility = 1.0;
-        } else {
-            cloudVisibility = 0.3 + (lux - 1000) / 1000.0 * (1.0 - 0.3);
-        }
+    private void updateClouds(double lux) {
+        double cloudVisibility = computeClampedLinear(
+                lux,
+                CLOUD_MIN_LUX,
+                CLOUD_MAX_LUX,
+                CLOUD_MIN_VISIBILITY,
+                CLOUD_MAX_VISIBILITY
+        );
 
         cloud1.setOpacity(cloudVisibility);
         cloud2.setOpacity(cloudVisibility);
     }
 
+    /**
+     * Mapare liniară între [minValue, maxValue] -> [minResult, maxResult] cu saturare la capete.
+     */
+    private double computeClampedLinear(double value,
+                                        double minValue,
+                                        double maxValue,
+                                        double minResult,
+                                        double maxResult) {
+        if (value <= minValue) {
+            return minResult;
+        }
+        if (value >= maxValue) {
+            return maxResult;
+        }
+        double ratio = (value - minValue) / (maxValue - minValue);
+        return minResult + ratio * (maxResult - minResult);
+    }
+
     // === ISTORIC + DETECTARE SCHIMBĂRI BRUȘTE ===
 
-    // Acum este apelată o dată pe secundă din sampleTimeline
     private void addLuxToHistory(double lux) {
         sampleIndex++;
         luxHistory.add(lux);
@@ -409,13 +480,17 @@ public class Lumina2 extends Application {
         luxSeries.getData().add(dataPoint);
 
         if (sudden) {
-            suddenChangeIndices.add(sampleIndex);
-            dataPoint.nodeProperty().addListener((obs, oldNode, newNode) -> {
-                if (newNode != null) {
-                    newNode.setStyle("-fx-background-color: red; -fx-background-radius: 4px;");
-                }
-            });
+            markSuddenChange(sampleIndex, dataPoint);
         }
+    }
+
+    private void markSuddenChange(int index, XYChart.Data<Number, Number> dataPoint) {
+        suddenChangeIndices.add(index);
+        dataPoint.nodeProperty().addListener((obs, oldNode, newNode) -> {
+            if (newNode != null) {
+                newNode.setStyle("-fx-background-color: red; -fx-background-radius: 4px;");
+            }
+        });
     }
 
     private boolean isSuddenChange(double currentLux) {
@@ -454,78 +529,102 @@ public class Lumina2 extends Application {
             return;
         }
 
-        FileChooser fileChooser = new FileChooser();
-        fileChooser.setTitle("Salvează raport PDF");
-        fileChooser.getExtensionFilters().add(
-                new FileChooser.ExtensionFilter("Fișier PDF", "*.pdf")
-        );
-        File pdfFile = fileChooser.showSaveDialog(root.getScene().getWindow());
+        File pdfFile = choosePdfDestination();
         if (pdfFile == null) {
             return;
         }
 
         try {
-            // Snapshot pentru grafic
-            WritableImage chartImage = luxChart.snapshot(new SnapshotParameters(), null);
-            File tempPng = File.createTempFile("lux_chart_", ".png");
-            ImageIO.write(SwingFXUtils.fromFXImage(chartImage, null), "png", tempPng);
-
-            double min = getMin();
-            double max = getMax();
-            double avg = getAverage();
-
-            Document document = new Document();
-            PdfWriter.getInstance(document, new FileOutputStream(pdfFile));
-            document.open();
-
-            document.add(new Paragraph("Raport variatii luminozitate"));
-            document.add(new Paragraph(" "));
-            document.add(new Paragraph("Numar valori: " + luxHistory.size()));
-            document.add(new Paragraph(String.format(Locale.US, "Valoare minima: %.2f lux", min)));
-            document.add(new Paragraph(String.format(Locale.US, "Valoare maxima: %.2f lux", max)));
-            document.add(new Paragraph(String.format(Locale.US, "Valoare medie: %.2f lux", avg)));
-            document.add(new Paragraph(" "));
-
-            // Imaginea graficului
-            Image chart = Image.getInstance(tempPng.getAbsolutePath());
-            chart.scaleToFit(500, 300);
-            document.add(chart);
-            document.add(new Paragraph(" "));
-
-            // Tabel cu valori (mostre + marcaj schimbari bruste)
-            PdfPTable table = new PdfPTable(2);
-            table.addCell("Mostra");
-            table.addCell("Lux");
-
-            for (int i = 0; i < luxHistory.size(); i++) {
-                int index = i + 1;
-                double value = luxHistory.get(i);
-
-                table.addCell(String.valueOf(index));
-
-                String text = String.format(Locale.US, "%.2f", value);
-                if (suddenChangeIndices.contains(index)) {
-                    text += " *"; // * = schimbare brusca
-                }
-                table.addCell(text);
-            }
-
-            document.add(table);
-
-            if (!suddenChangeIndices.isEmpty()) {
-                document.add(new Paragraph(" "));
-                document.add(new Paragraph(
-                        "* Valorile marcate indica mostre unde a fost detectata o schimbare brusca a luminii."
-                ));
-            }
-
-            document.close();
-            tempPng.delete();
-
+            File chartImageFile = createChartSnapshotFile();
+            writePdfReport(pdfFile, chartImageFile);
+            chartImageFile.delete();
             System.out.println("PDF generat: " + pdfFile.getAbsolutePath());
         } catch (Exception e) {
             e.printStackTrace();
         }
+    }
+
+    private File choosePdfDestination() {
+        FileChooser fileChooser = new FileChooser();
+        fileChooser.setTitle("Salvează raport PDF");
+        fileChooser.getExtensionFilters().add(
+                new FileChooser.ExtensionFilter("Fișier PDF", "*.pdf")
+        );
+        return fileChooser.showSaveDialog(root.getScene().getWindow());
+    }
+
+    private File createChartSnapshotFile() throws IOException {
+        WritableImage chartImage = luxChart.snapshot(new SnapshotParameters(), null);
+        File tempPng = File.createTempFile("lux_chart_", ".png");
+        ImageIO.write(SwingFXUtils.fromFXImage(chartImage, null), "png", tempPng);
+        return tempPng;
+    }
+
+    private void writePdfReport(File pdfFile, File chartImageFile) throws Exception {
+        Document document = new Document();
+        try {
+            PdfWriter.getInstance(document, new FileOutputStream(pdfFile));
+            document.open();
+
+            addStatisticsToDocument(document);
+            addChartImageToDocument(document, chartImageFile);
+            addHistoryTableToDocument(document);
+            addSuddenChangeLegend(document);
+        } finally {
+            document.close();
+        }
+    }
+
+    private void addStatisticsToDocument(Document document) throws Exception {
+        double min = getMin();
+        double max = getMax();
+        double avg = getAverage();
+
+        document.add(new Paragraph("Raport variatii luminozitate"));
+        document.add(new Paragraph(" "));
+        document.add(new Paragraph("Numar valori: " + luxHistory.size()));
+        document.add(new Paragraph(String.format(Locale.US, "Valoare minima: %.2f lux", min)));
+        document.add(new Paragraph(String.format(Locale.US, "Valoare maxima: %.2f lux", max)));
+        document.add(new Paragraph(String.format(Locale.US, "Valoare medie: %.2f lux", avg)));
+        document.add(new Paragraph(" "));
+    }
+
+    private void addChartImageToDocument(Document document, File chartImageFile) throws Exception {
+        Image chart = Image.getInstance(chartImageFile.getAbsolutePath());
+        chart.scaleToFit(500, 300);
+        document.add(chart);
+        document.add(new Paragraph(" "));
+    }
+
+    private void addHistoryTableToDocument(Document document) throws Exception {
+        PdfPTable table = new PdfPTable(2);
+        table.addCell("Mostra");
+        table.addCell("Lux");
+
+        for (int i = 0; i < luxHistory.size(); i++) {
+            int index = i + 1;
+            double value = luxHistory.get(i);
+
+            table.addCell(String.valueOf(index));
+
+            String text = String.format(Locale.US, "%.2f", value);
+            if (suddenChangeIndices.contains(index)) {
+                text += " *"; // * = schimbare bruscă
+            }
+            table.addCell(text);
+        }
+
+        document.add(table);
+    }
+
+    private void addSuddenChangeLegend(Document document) throws Exception {
+        if (suddenChangeIndices.isEmpty()) {
+            return;
+        }
+        document.add(new Paragraph(" "));
+        document.add(new Paragraph(
+                "* Valorile marcate indica mostre unde a fost detectata o schimbare brusca a luminii."
+        ));
     }
 
     private double getMin() {
