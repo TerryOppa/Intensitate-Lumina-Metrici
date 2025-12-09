@@ -423,11 +423,16 @@ public class Lumina2 extends Application {
     }
 
     private void updateSunColor(double lux) {
-        if (lux < SUN_COLOR_THRESHOLD_LUX) {
-            sun.setFill(Color.GOLD);
-        } else {
-            sun.setFill(Color.ORANGE);
-        }
+        double t = computeClampedLinear(
+                lux,
+                0.0,
+                SUN_COLOR_THRESHOLD_LUX,
+                0.0,
+                1.0
+        );
+        Color start = Color.GOLD;
+        Color end = Color.ORANGE;
+        sun.setFill(start.interpolate(end, t));
     }
 
     private void updateStars(double lux) {
@@ -458,21 +463,17 @@ public class Lumina2 extends Application {
     }
 
     /**
-     * Mapare liniară între [minValue, maxValue] -> [minResult, maxResult] cu saturare la capete.
+     * Mapare liniară între [minValue, maxValue] -> [minResult, maxResult] cu saturare la capete,
+     * implementată fără if-uri explicite.
      */
     private double computeClampedLinear(double value,
                                         double minValue,
                                         double maxValue,
                                         double minResult,
                                         double maxResult) {
-        if (value <= minValue) {
-            return minResult;
-        }
-        if (value >= maxValue) {
-            return maxResult;
-        }
         double ratio = (value - minValue) / (maxValue - minValue);
-        return minResult + ratio * (maxResult - minResult);
+        double clampedRatio = Math.max(0.0, Math.min(1.0, ratio));
+        return minResult + clampedRatio * (maxResult - minResult);
     }
 
     // === ISTORIC + DETECTARE SCHIMBĂRI BRUȘTE ===
@@ -487,17 +488,13 @@ public class Lumina2 extends Application {
         luxSeries.getData().add(dataPoint);
 
         if (sudden) {
-            markSuddenChange(sampleIndex, dataPoint);
+            suddenChangeIndices.add(sampleIndex);
+            dataPoint.nodeProperty().addListener((obs, oldNode, newNode) -> {
+                if (newNode != null) {
+                    newNode.setStyle("-fx-background-color: red; -fx-background-radius: 4px;");
+                }
+            });
         }
-    }
-
-    private void markSuddenChange(int index, XYChart.Data<Number, Number> dataPoint) {
-        suddenChangeIndices.add(index);
-        dataPoint.nodeProperty().addListener((obs, oldNode, newNode) -> {
-            if (newNode != null) {
-                newNode.setStyle("-fx-background-color: red; -fx-background-radius: 4px;");
-            }
-        });
     }
 
     private boolean isSuddenChange(double currentLux) {
@@ -531,11 +528,8 @@ public class Lumina2 extends Application {
     // === EXPORT PDF ===
 
     private void exportHistoryToPdf() {
-        if (luxHistory.isEmpty()) {
-            System.out.println("Nu există date de exportat.");
-            return;
-        }
-
+        // Observație: acum permitem export chiar dacă nu sunt date;
+        // statisticile vor fi 0, iar tabelul gol.
         FileChooser fileChooser = new FileChooser();
         fileChooser.setTitle("Salvează raport PDF");
         fileChooser.getExtensionFilters().add(
@@ -595,12 +589,11 @@ public class Lumina2 extends Application {
 
             document.add(table);
 
-            if (!suddenChangeIndices.isEmpty()) {
-                document.add(new Paragraph(" "));
-                document.add(new Paragraph(
-                        "* Valorile marcate indica mostre unde a fost detectata o schimbare brusca a luminii."
-                ));
-            }
+            // Adăugăm mereu legenda (chiar dacă nu există * efectiv)
+            document.add(new Paragraph(" "));
+            document.add(new Paragraph(
+                    "* Valorile marcate indica mostre unde a fost detectata o schimbare brusca a luminii."
+            ));
 
             document.close();
             tempPng.delete();
