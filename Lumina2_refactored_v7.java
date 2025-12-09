@@ -35,6 +35,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.stream.DoubleStream;
+import java.util.stream.IntStream;
 
 import com.itextpdf.text.Document;
 import com.itextpdf.text.Paragraph;
@@ -103,14 +105,88 @@ public class Lumina2 extends Application {
         animationPane = new Pane();
         animationPane.setPrefSize(WIDTH, HEIGHT);
 
-        createStars();
-        createClouds();
-        createSunAndMoon();
-        createGround();
-        createAlertLabel();
+        // --- Stele ---
+        Circle star1 = new Circle(2, Color.WHITE);
+        Circle star2 = new Circle(2, Color.WHITE);
+        Circle star3 = new Circle(2, Color.WHITE);
+        Circle star4 = new Circle(2, Color.WHITE);
+        Circle star5 = new Circle(2, Color.WHITE);
+        Circle star6 = new Circle(2, Color.WHITE);
 
-        animationPane.getChildren().addAll(starGroups);
-        animationPane.getChildren().addAll(sun, moon, ground, cloud1, cloud2, alertLabel);
+        setupStarTwinkle(star1);
+        setupStarTwinkle(star2);
+        setupStarTwinkle(star3);
+        setupStarTwinkle(star4);
+        setupStarTwinkle(star5);
+        setupStarTwinkle(star6);
+
+        Group sg1 = new Group(star1);
+        sg1.setTranslateX(200);
+        sg1.setTranslateY(300);
+        sg1.setOpacity(0);
+
+        Group sg2 = new Group(star2);
+        sg2.setTranslateX(350);
+        sg2.setTranslateY(500);
+        sg2.setOpacity(0);
+
+        Group sg3 = new Group(star3);
+        sg3.setTranslateX(500);
+        sg3.setTranslateY(400);
+        sg3.setOpacity(0);
+
+        Group sg4 = new Group(star4);
+        sg4.setTranslateX(700);
+        sg4.setTranslateY(500);
+        sg4.setOpacity(0);
+
+        Group sg5 = new Group(star5);
+        sg5.setTranslateX(1000);
+        sg5.setTranslateY(200);
+        sg5.setOpacity(0);
+
+        Group sg6 = new Group(star6);
+        sg6.setTranslateX(1400);
+        sg6.setTranslateY(500);
+        sg6.setOpacity(0);
+
+        starGroups.add(sg1);
+        starGroups.add(sg2);
+        starGroups.add(sg3);
+        starGroups.add(sg4);
+        starGroups.add(sg5);
+        starGroups.add(sg6);
+
+        // --- Nori ---
+        cloud1 = createCloud(-100, 100);
+        cloud2 = createCloud(WIDTH + 100, 200);
+
+        // --- Soare + Lună ---
+        sun = new Circle(10, Color.GOLD);
+        sun.setTranslateX(WIDTH / 2);
+        sun.setTranslateY(HEIGHT);
+
+        moon = new Circle(10, Color.LIGHTGRAY);
+        moon.setTranslateX(WIDTH / 2);
+        moon.setTranslateY(HEIGHT);
+
+        // --- Sol ---
+        ground = new Rectangle(0, HEIGHT - GROUND_HEIGHT, WIDTH, GROUND_HEIGHT);
+        ground.setFill(Color.GREEN);
+
+        // --- Label alertă schimbări bruște ---
+        alertLabel = new Label();
+        alertLabel.setTextFill(Color.RED);
+        alertLabel.setStyle("-fx-font-size: 24px; -fx-font-weight: bold;");
+        alertLabel.setVisible(false);
+        alertLabel.setLayoutX(20);
+        alertLabel.setLayoutY(20);
+
+        animationPane.getChildren().addAll(
+                sg1, sg2, sg3, sg4, sg5, sg6,
+                sun, moon, ground, cloud1, cloud2,
+                alertLabel
+        );
 
         root.setCenter(animationPane);
         root.setBottom(createControlPanel());
@@ -124,74 +200,15 @@ public class Lumina2 extends Application {
         setupCloudMovement(cloud1, true);
         setupCloudMovement(cloud2, false);
 
-        setupSamplingTimeline();
+        // Timeline pentru eșantionare 1 Hz
+        sampleTimeline = new Timeline(
+                new KeyFrame(Duration.seconds(1), e -> addLuxToHistory(currentLux))
+        );
+        sampleTimeline.setCycleCount(Timeline.INDEFINITE);
+        sampleTimeline.play();
+
+        // Thread pentru comunicarea serială
         new Thread(this::setupSerialCommunication).start();
-    }
-
-    // === Inițializare elemente scenă ===
-
-    private void createStars() {
-        Circle star1 = createStarCircle();
-        Circle star2 = createStarCircle();
-        Circle star3 = createStarCircle();
-        Circle star4 = createStarCircle();
-        Circle star5 = createStarCircle();
-        Circle star6 = createStarCircle();
-
-        setupStarTwinkle(star1);
-        setupStarTwinkle(star2);
-        setupStarTwinkle(star3);
-        setupStarTwinkle(star4);
-        setupStarTwinkle(star5);
-        setupStarTwinkle(star6);
-
-        starGroups.add(createStarGroup(star1, 200, 300));
-        starGroups.add(createStarGroup(star2, 350, 500));
-        starGroups.add(createStarGroup(star3, 500, 400));
-        starGroups.add(createStarGroup(star4, 700, 500));
-        starGroups.add(createStarGroup(star5, 1000, 200));
-        starGroups.add(createStarGroup(star6, 1400, 500));
-    }
-
-    private Circle createStarCircle() {
-        return new Circle(2, Color.WHITE);
-    }
-
-    private Group createStarGroup(Circle star, double x, double y) {
-        Group group = new Group(star);
-        group.setTranslateX(x);
-        group.setTranslateY(y);
-        group.setOpacity(0);
-        return group;
-    }
-
-    private void createClouds() {
-        cloud1 = createCloud(-100, 100);
-        cloud2 = createCloud(WIDTH + 100, 200);
-    }
-
-    private void createSunAndMoon() {
-        sun = new Circle(10, Color.GOLD);
-        sun.setTranslateX(WIDTH / 2);
-        sun.setTranslateY(HEIGHT);
-
-        moon = new Circle(10, Color.LIGHTGRAY);
-        moon.setTranslateX(WIDTH / 2);
-        moon.setTranslateY(HEIGHT);
-    }
-
-    private void createGround() {
-        ground = new Rectangle(0, HEIGHT - GROUND_HEIGHT, WIDTH, GROUND_HEIGHT);
-        ground.setFill(Color.GREEN);
-    }
-
-    private void createAlertLabel() {
-        alertLabel = new Label();
-        alertLabel.setTextFill(Color.RED);
-        alertLabel.setStyle("-fx-font-size: 24px; -fx-font-weight: bold;");
-        alertLabel.setVisible(false);
-        alertLabel.setLayoutX(20);
-        alertLabel.setLayoutY(20);
     }
 
     // Panou jos: slider + mod test
@@ -266,14 +283,6 @@ public class Lumina2 extends Application {
         twinkle.play();
     }
 
-    private void setupSamplingTimeline() {
-        sampleTimeline = new Timeline(
-                new KeyFrame(Duration.seconds(1), e -> addLuxToHistory(currentLux))
-        );
-        sampleTimeline.setCycleCount(Timeline.INDEFINITE);
-        sampleTimeline.play();
-    }
-
     // === Comunicare serial ===
 
     private void setupSerialCommunication() {
@@ -283,11 +292,9 @@ public class Lumina2 extends Application {
             return;
         }
 
-        serialComm.addDataListener(this::handleSerialData);
-    }
-
-    private void handleSerialData(String data) {
-        Platform.runLater(() -> processSerialDataOnFxThread(data));
+        serialComm.addDataListener(data ->
+                Platform.runLater(() -> processSerialDataOnFxThread(data))
+        );
     }
 
     private void processSerialDataOnFxThread(String data) {
@@ -529,126 +536,106 @@ public class Lumina2 extends Application {
             return;
         }
 
-        File pdfFile = choosePdfDestination();
+        FileChooser fileChooser = new FileChooser();
+        fileChooser.setTitle("Salvează raport PDF");
+        fileChooser.getExtensionFilters().add(
+                new FileChooser.ExtensionFilter("Fișier PDF", "*.pdf")
+        );
+        File pdfFile = fileChooser.showSaveDialog(root.getScene().getWindow());
         if (pdfFile == null) {
             return;
         }
 
         try {
-            File chartImageFile = createChartSnapshotFile();
-            writePdfReport(pdfFile, chartImageFile);
-            chartImageFile.delete();
+            // Snapshot pentru grafic
+            WritableImage chartImage = luxChart.snapshot(new SnapshotParameters(), null);
+            File tempPng = File.createTempFile("lux_chart_", ".png");
+            ImageIO.write(SwingFXUtils.fromFXImage(chartImage, null), "png", tempPng);
+
+            Document document = new Document();
+            PdfWriter.getInstance(document, new FileOutputStream(pdfFile));
+            document.open();
+
+            // Statistici
+            double min = getMin();
+            double max = getMax();
+            double avg = getAverage();
+
+            document.add(new Paragraph("Raport variatii luminozitate"));
+            document.add(new Paragraph(" "));
+            document.add(new Paragraph("Numar valori: " + luxHistory.size()));
+            document.add(new Paragraph(String.format(Locale.US, "Valoare minima: %.2f lux", min)));
+            document.add(new Paragraph(String.format(Locale.US, "Valoare maxima: %.2f lux", max)));
+            document.add(new Paragraph(String.format(Locale.US, "Valoare medie: %.2f lux", avg)));
+            document.add(new Paragraph(" "));
+
+            // Imaginea graficului
+            Image chart = Image.getInstance(tempPng.getAbsolutePath());
+            chart.scaleToFit(500, 300);
+            document.add(chart);
+            document.add(new Paragraph(" "));
+
+            // Tabel cu valori (mostre + marcaj schimbari bruste)
+            PdfPTable table = new PdfPTable(2);
+            table.addCell("Mostra");
+            table.addCell("Lux");
+
+            IntStream.range(0, luxHistory.size()).forEach(i -> {
+                int index = i + 1;
+                double value = luxHistory.get(i);
+
+                table.addCell(String.valueOf(index));
+
+                String text = String.format(Locale.US, "%.2f", value);
+                if (suddenChangeIndices.contains(index)) {
+                    text += " *"; // * = schimbare bruscă
+                }
+                table.addCell(text);
+            });
+
+            document.add(table);
+
+            if (!suddenChangeIndices.isEmpty()) {
+                document.add(new Paragraph(" "));
+                document.add(new Paragraph(
+                        "* Valorile marcate indica mostre unde a fost detectata o schimbare brusca a luminii."
+                ));
+            }
+
+            document.close();
+            tempPng.delete();
+
             System.out.println("PDF generat: " + pdfFile.getAbsolutePath());
         } catch (Exception e) {
             e.printStackTrace();
         }
     }
 
-    private File choosePdfDestination() {
-        FileChooser fileChooser = new FileChooser();
-        fileChooser.setTitle("Salvează raport PDF");
-        fileChooser.getExtensionFilters().add(
-                new FileChooser.ExtensionFilter("Fișier PDF", "*.pdf")
-        );
-        return fileChooser.showSaveDialog(root.getScene().getWindow());
-    }
-
-    private File createChartSnapshotFile() throws IOException {
-        WritableImage chartImage = luxChart.snapshot(new SnapshotParameters(), null);
-        File tempPng = File.createTempFile("lux_chart_", ".png");
-        ImageIO.write(SwingFXUtils.fromFXImage(chartImage, null), "png", tempPng);
-        return tempPng;
-    }
-
-    private void writePdfReport(File pdfFile, File chartImageFile) throws Exception {
-        Document document = new Document();
-        try {
-            PdfWriter.getInstance(document, new FileOutputStream(pdfFile));
-            document.open();
-
-            addStatisticsToDocument(document);
-            addChartImageToDocument(document, chartImageFile);
-            addHistoryTableToDocument(document);
-            addSuddenChangeLegend(document);
-        } finally {
-            document.close();
-        }
-    }
-
-    private void addStatisticsToDocument(Document document) throws Exception {
-        double min = getMin();
-        double max = getMax();
-        double avg = getAverage();
-
-        document.add(new Paragraph("Raport variatii luminozitate"));
-        document.add(new Paragraph(" "));
-        document.add(new Paragraph("Numar valori: " + luxHistory.size()));
-        document.add(new Paragraph(String.format(Locale.US, "Valoare minima: %.2f lux", min)));
-        document.add(new Paragraph(String.format(Locale.US, "Valoare maxima: %.2f lux", max)));
-        document.add(new Paragraph(String.format(Locale.US, "Valoare medie: %.2f lux", avg)));
-        document.add(new Paragraph(" "));
-    }
-
-    private void addChartImageToDocument(Document document, File chartImageFile) throws Exception {
-        Image chart = Image.getInstance(chartImageFile.getAbsolutePath());
-        chart.scaleToFit(500, 300);
-        document.add(chart);
-        document.add(new Paragraph(" "));
-    }
-
-    private void addHistoryTableToDocument(Document document) throws Exception {
-        PdfPTable table = new PdfPTable(2);
-        table.addCell("Mostra");
-        table.addCell("Lux");
-
-        for (int i = 0; i < luxHistory.size(); i++) {
-            int index = i + 1;
-            double value = luxHistory.get(i);
-
-            table.addCell(String.valueOf(index));
-
-            String text = String.format(Locale.US, "%.2f", value);
-            if (suddenChangeIndices.contains(index)) {
-                text += " *"; // * = schimbare bruscă
-            }
-            table.addCell(text);
-        }
-
-        document.add(table);
-    }
-
-    private void addSuddenChangeLegend(Document document) throws Exception {
-        if (suddenChangeIndices.isEmpty()) {
-            return;
-        }
-        document.add(new Paragraph(" "));
-        document.add(new Paragraph(
-                "* Valorile marcate indica mostre unde a fost detectata o schimbare brusca a luminii."
-        ));
-    }
-
+    // Versiuni cu Stream – fără bucle + if în codul tău
     private double getMin() {
-        double min = Double.MAX_VALUE;
-        for (double v : luxHistory) {
-            if (v < min) min = v;
-        }
-        return min;
+        return luxHistory.isEmpty()
+                ? 0.0
+                : luxHistory.stream()
+                            .mapToDouble(Double::doubleValue)
+                            .min()
+                            .orElse(0.0);
     }
 
     private double getMax() {
-        double max = -Double.MAX_VALUE;
-        for (double v : luxHistory) {
-            if (v > max) max = v;
-        }
-        return max;
+        return luxHistory.isEmpty()
+                ? 0.0
+                : luxHistory.stream()
+                            .mapToDouble(Double::doubleValue)
+                            .max()
+                            .orElse(0.0);
     }
 
     private double getAverage() {
-        double sum = 0;
-        for (double v : luxHistory) {
-            sum += v;
+        if (luxHistory.isEmpty()) {
+            return 0.0;
         }
-        return sum / luxHistory.size();
+        DoubleStream stream = luxHistory.stream().mapToDouble(Double::doubleValue);
+        return stream.average().orElse(0.0);
     }
 
     @Override
