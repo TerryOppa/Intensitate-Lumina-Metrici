@@ -1,5 +1,5 @@
 
-package lumina2;
+package lumina;
 
 import javafx.animation.*;
 import javafx.application.Application;
