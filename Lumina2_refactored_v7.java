@@ -31,12 +31,13 @@ import javafx.util.Duration;
 import javax.imageio.ImageIO;
 import java.io.File;
 import java.io.FileOutputStream;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.stream.DoubleStream;
 import java.util.stream.IntStream;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import com.itextpdf.text.Document;
 import com.itextpdf.text.Paragraph;
@@ -46,11 +47,13 @@ import com.itextpdf.text.pdf.PdfWriter;
 
 public class Lumina2 extends Application {
 
+    private static final Logger LOGGER = Logger.getLogger(Lumina2.class.getName());
+
     private BorderPane root;
     private Pane animationPane;
 
-    private Circle sun;
-    private Circle moon;
+    private Circle sunCircle;
+    private Circle moonCircle;
     private Rectangle ground;
     private Group cloud1;
     private Group cloud2;
@@ -59,12 +62,10 @@ public class Lumina2 extends Application {
     // Stele
     private final List<Group> starGroups = new ArrayList<>();
 
-    // NOILE CONTROALE
-    private Slider testSlider;
+    // Noile controale
     private CheckBox testModeCheckBox;
     private LineChart<Number, Number> luxChart;
     private XYChart.Series<Number, Number> luxSeries;
-    private Button exportPdfButton;
     private Label alertLabel;
 
     // Istoric + detectare schimbări bruște
@@ -74,13 +75,9 @@ public class Lumina2 extends Application {
     private double lastLux = -1;
     private static final double SUDDEN_CHANGE_THRESHOLD = 800.0; // lux
 
-    // Lux curent (ultimul primit) – se loghează pe grafic o dată/secundă
-    private double currentLux = 0.0;
-    private Timeline sampleTimeline; // timeline pentru eșantionare 1 Hz
-
-    private final double WIDTH = 1600;
-    private final double HEIGHT = 900;
-    private final double GROUND_HEIGHT = 100;
+    private static final double width = 1600.0;
+    private static final double height = 900.0;
+    private static final double groundHeight = 100.0;
 
     private Timeline sunAnimation;
     private Timeline moonAnimation;
@@ -103,7 +100,7 @@ public class Lumina2 extends Application {
     public void start(Stage primaryStage) {
         root = new BorderPane();
         animationPane = new Pane();
-        animationPane.setPrefSize(WIDTH, HEIGHT);
+        animationPane.setPrefSize(width, height);
 
         // --- Stele ---
         Circle star1 = new Circle(2, Color.WHITE);
@@ -159,19 +156,19 @@ public class Lumina2 extends Application {
 
         // --- Nori ---
         cloud1 = createCloud(-100, 100);
-        cloud2 = createCloud(WIDTH + 100, 200);
+        cloud2 = createCloud(width + 100, 200);
 
         // --- Soare + Lună ---
-        sun = new Circle(10, Color.GOLD);
-        sun.setTranslateX(WIDTH / 2);
-        sun.setTranslateY(HEIGHT);
+        sunCircle = new Circle(10, Color.GOLD);
+        sunCircle.setTranslateX(width / 2);
+        sunCircle.setTranslateY(height);
 
-        moon = new Circle(10, Color.LIGHTGRAY);
-        moon.setTranslateX(WIDTH / 2);
-        moon.setTranslateY(HEIGHT);
+        moonCircle = new Circle(10, Color.LIGHTGRAY);
+        moonCircle.setTranslateX(width / 2);
+        moonCircle.setTranslateY(height);
 
         // --- Sol ---
-        ground = new Rectangle(0, HEIGHT - GROUND_HEIGHT, WIDTH, GROUND_HEIGHT);
+        ground = new Rectangle(0, height - groundHeight, width, groundHeight);
         ground.setFill(Color.GREEN);
 
         // --- Label alertă schimbări bruște ---
@@ -184,7 +181,7 @@ public class Lumina2 extends Application {
 
         animationPane.getChildren().addAll(
                 sg1, sg2, sg3, sg4, sg5, sg6,
-                sun, moon, ground, cloud1, cloud2,
+                sunCircle, moonCircle, ground, cloud1, cloud2,
                 alertLabel
         );
 
@@ -192,7 +189,7 @@ public class Lumina2 extends Application {
         root.setBottom(createControlPanel());
         root.setRight(createRightPanel());
 
-        Scene scene = new Scene(root, WIDTH, HEIGHT);
+        Scene scene = new Scene(root, width, height);
         primaryStage.setTitle("Răsărit și Apus");
         primaryStage.setScene(scene);
         primaryStage.show();
@@ -200,20 +197,13 @@ public class Lumina2 extends Application {
         setupCloudMovement(cloud1, true);
         setupCloudMovement(cloud2, false);
 
-        // Timeline pentru eșantionare 1 Hz
-        sampleTimeline = new Timeline(
-                new KeyFrame(Duration.seconds(1), e -> addLuxToHistory(currentLux))
-        );
-        sampleTimeline.setCycleCount(Timeline.INDEFINITE);
-        sampleTimeline.play();
-
         // Thread pentru comunicarea serială
         new Thread(this::setupSerialCommunication).start();
     }
 
     // Panou jos: slider + mod test
     private HBox createControlPanel() {
-        testSlider = new Slider(0, LUX_MAX, 0);
+        Slider testSlider = new Slider(0, LUX_MAX, 0);
         testSlider.setShowTickMarks(true);
         testSlider.setShowTickLabels(true);
         testSlider.setMajorTickUnit(1000);
@@ -254,7 +244,7 @@ public class Lumina2 extends Application {
         luxSeries.setName("Lux");
         luxChart.getData().add(luxSeries);
 
-        exportPdfButton = new Button("Export PDF");
+        Button exportPdfButton = new Button("Export PDF");
         exportPdfButton.setOnAction(e -> exportHistoryToPdf());
 
         VBox vbox = new VBox(10, luxChart, exportPdfButton);
@@ -288,7 +278,7 @@ public class Lumina2 extends Application {
     private void setupSerialCommunication() {
         serialComm = new SerialComm("COM3", 9600);
         if (!serialComm.openPort()) {
-            System.out.println("Port indisponibil.");
+            LOGGER.warning("Port indisponibil.");
             return;
         }
 
@@ -323,8 +313,8 @@ public class Lumina2 extends Application {
     // Unificăm tratarea valorilor de lux
     private void handleNewLuxValue(float lux) {
         double clampedLux = clampLux(lux);
-        currentLux = clampedLux;
         updateScene((float) clampedLux);
+        addLuxToHistory(clampedLux);
     }
 
     private double clampLux(double lux) {
@@ -336,8 +326,8 @@ public class Lumina2 extends Application {
     }
 
     private void moveCloud(Group cloud, boolean leftToRight) {
-        double startX = leftToRight ? -100 : WIDTH + 100;
-        double endX = leftToRight ? WIDTH + 100 : -100;
+        double startX = leftToRight ? -100 : width + 100;
+        double endX = leftToRight ? width + 100 : -100;
 
         Timeline moveTimeline = new Timeline(
                 new KeyFrame(Duration.seconds(20),
@@ -371,7 +361,7 @@ public class Lumina2 extends Application {
 
     private void updateSun(double lux) {
         double sunFrac = Math.max(0, (lux - 1500) / 4500.0);
-        double sunY = HEIGHT - (sunFrac * HEIGHT - 200);
+        double sunY = height - (sunFrac * height - 200);
         double sunRadius = 10 + 50 * sunFrac;
 
         if (sunAnimation != null) {
@@ -380,8 +370,8 @@ public class Lumina2 extends Application {
 
         sunAnimation = new Timeline(
                 new KeyFrame(Duration.seconds(0.1),
-                        new KeyValue(sun.translateYProperty(), sunY),
-                        new KeyValue(sun.radiusProperty(), sunRadius)
+                        new KeyValue(sunCircle.translateYProperty(), sunY),
+                        new KeyValue(sunCircle.radiusProperty(), sunRadius)
                 )
         );
         sunAnimation.play();
@@ -389,7 +379,7 @@ public class Lumina2 extends Application {
 
     private void updateMoon(double lux) {
         double moonFrac = Math.max(0, (1500 - lux) / 1500.0);
-        double moonY = 200 + (1 - moonFrac) * (HEIGHT - GROUND_HEIGHT);
+        double moonY = 200 + (1 - moonFrac) * (height - groundHeight);
         double moonRadius = 10 + 30 * moonFrac;
 
         if (moonAnimation != null) {
@@ -398,8 +388,8 @@ public class Lumina2 extends Application {
 
         moonAnimation = new Timeline(
                 new KeyFrame(Duration.seconds(0.1),
-                        new KeyValue(moon.translateYProperty(), moonY),
-                        new KeyValue(moon.radiusProperty(), moonRadius)
+                        new KeyValue(moonCircle.translateYProperty(), moonY),
+                        new KeyValue(moonCircle.radiusProperty(), moonRadius)
                 )
         );
         moonAnimation.play();
@@ -432,7 +422,7 @@ public class Lumina2 extends Application {
         );
         Color start = Color.GOLD;
         Color end = Color.ORANGE;
-        sun.setFill(start.interpolate(end, t));
+        sunCircle.setFill(start.interpolate(end, t));
     }
 
     private void updateStars(double lux) {
@@ -463,8 +453,8 @@ public class Lumina2 extends Application {
     }
 
     /**
-     * Mapare liniară între [minValue, maxValue] -> [minResult, maxResult] cu saturare la capete,
-     * implementată fără if-uri explicite.
+     * Mapare liniară între [minValue, maxValue] -> [minResult, maxResult] cu
+     * saturare la capete, implementată fără if-uri explicite.
      */
     private double computeClampedLinear(double value,
                                         double minValue,
@@ -528,8 +518,6 @@ public class Lumina2 extends Application {
     // === EXPORT PDF ===
 
     private void exportHistoryToPdf() {
-        // Observație: acum permitem export chiar dacă nu sunt date;
-        // statisticile vor fi 0, iar tabelul gol.
         FileChooser fileChooser = new FileChooser();
         fileChooser.setTitle("Salvează raport PDF");
         fileChooser.getExtensionFilters().add(
@@ -598,9 +586,9 @@ public class Lumina2 extends Application {
             document.close();
             tempPng.delete();
 
-            System.out.println("PDF generat: " + pdfFile.getAbsolutePath());
+            LOGGER.info("PDF generat: " + pdfFile.getAbsolutePath());
         } catch (Exception e) {
-            e.printStackTrace();
+            LOGGER.log(Level.SEVERE, "Eroare la generarea PDF-ului", e);
         }
     }
 
@@ -636,9 +624,6 @@ public class Lumina2 extends Application {
         super.stop();
         if (serialComm != null) {
             serialComm.closePort();
-        }
-        if (sampleTimeline != null) {
-            sampleTimeline.stop();
         }
     }
 
