@@ -60,16 +60,16 @@ public class Lumina2 extends Application {
     private Group cloud2;
     private SerialComm serialComm;
 
-    // Stele
+    
     private final List<Group> starGroups = new ArrayList<>();
 
-    // Noile controale
+    
     private CheckBox testModeCheckBox;
     private LineChart<Number, Number> luxChart;
     private XYChart.Series<Number, Number> luxSeries;
     private Label alertLabel;
 
-    // Istoric + detectare schimbări bruște
+    
     private final List<Double> luxHistory = new ArrayList<>();
     private final List<Integer> suddenChangeIndices = new ArrayList<>();
     private int sampleIndex = 0;
@@ -83,7 +83,7 @@ public class Lumina2 extends Application {
     private Timeline sunAnimation;
     private Timeline moonAnimation;
 
-    // Constante pentru lux și vizibilități
+    
     private static final double LUX_MIN = 0.0;
     private static final double LUX_MAX = 6000.0;
 
@@ -103,7 +103,7 @@ public class Lumina2 extends Application {
         animationPane = new Pane();
         animationPane.setPrefSize(width, height);
 
-        // --- Stele ---
+        
         Circle star1 = new Circle(2, Color.WHITE);
         Circle star2 = new Circle(2, Color.WHITE);
         Circle star3 = new Circle(2, Color.WHITE);
@@ -155,11 +155,11 @@ public class Lumina2 extends Application {
         starGroups.add(sg5);
         starGroups.add(sg6);
 
-        // --- Nori ---
+        
         cloud1 = createCloud(-100, 100);
         cloud2 = createCloud(width + 100, 200);
 
-        // --- Soare + Lună ---
+        
         sunCircle = new Circle(10, Color.GOLD);
         sunCircle.setTranslateX(width / 2);
         sunCircle.setTranslateY(height);
@@ -168,11 +168,11 @@ public class Lumina2 extends Application {
         moonCircle.setTranslateX(width / 2);
         moonCircle.setTranslateY(height);
 
-        // --- Sol ---
+       
         ground = new Rectangle(0, height - groundHeight, width, groundHeight);
         ground.setFill(Color.GREEN);
 
-        // --- Label alertă schimbări bruște ---
+       
         alertLabel = new Label();
         alertLabel.setTextFill(Color.RED);
         alertLabel.setStyle("-fx-font-size: 24px; -fx-font-weight: bold;");
@@ -198,11 +198,11 @@ public class Lumina2 extends Application {
         setupCloudMovement(cloud1, true);
         setupCloudMovement(cloud2, false);
 
-        // Thread pentru comunicarea serială
+        
         new Thread(this::setupSerialCommunication).start();
     }
 
-    // Panou jos: slider + mod test
+    
     private HBox createControlPanel() {
         Slider testSlider = new Slider(0, LUX_MAX, 0);
         testSlider.setShowTickMarks(true);
@@ -227,7 +227,7 @@ public class Lumina2 extends Application {
         return hbox;
     }
 
-    // Panou dreapta: grafic + buton PDF
+    
     private VBox createRightPanel() {
         NumberAxis xAxis = new NumberAxis();
         xAxis.setLabel("Timp (mostre)");
@@ -274,7 +274,7 @@ public class Lumina2 extends Application {
         twinkle.play();
     }
 
-    // === Comunicare serial ===
+    
 
     private void setupSerialCommunication() {
         serialComm = new SerialComm("COM3", 9600);
@@ -311,7 +311,7 @@ public class Lumina2 extends Application {
         return testModeCheckBox != null && testModeCheckBox.isSelected();
     }
 
-    // Unificăm tratarea valorilor de lux
+    
     private void handleNewLuxValue(float lux) {
         double clampedLux = clampLux(lux);
         updateScene((float) clampedLux);
@@ -346,8 +346,7 @@ public class Lumina2 extends Application {
         moveTimeline.play();
     }
 
-    // === Actualizare scenă ===
-
+    
     private void updateScene(float lux) {
         double clampedLux = clampLux(lux);
         double frac = clampedLux / LUX_MAX;
@@ -453,10 +452,7 @@ public class Lumina2 extends Application {
         cloud2.setOpacity(cloudVisibility);
     }
 
-    /**
-     * Mapare liniară între [minValue, maxValue] -> [minResult, maxResult] cu
-     * saturare la capete, implementată fără if-uri explicite.
-     */
+    
     private double computeClampedLinear(double value,
                                         double minValue,
                                         double maxValue,
@@ -467,8 +463,7 @@ public class Lumina2 extends Application {
         return minResult + clampedRatio * (maxResult - minResult);
     }
 
-    // === ISTORIC + DETECTARE SCHIMBĂRI BRUȘTE ===
-
+    
     private void addLuxToHistory(double lux) {
         sampleIndex++;
         luxHistory.add(lux);
@@ -516,8 +511,7 @@ public class Lumina2 extends Application {
         fade.play();
     }
 
-    // === EXPORT PDF ===
-
+    
     private void exportHistoryToPdf() {
         FileChooser fileChooser = new FileChooser();
         fileChooser.setTitle("Salvează raport PDF");
@@ -530,7 +524,7 @@ public class Lumina2 extends Application {
         }
 
         try {
-            // Snapshot pentru grafic
+            
             WritableImage chartImage = luxChart.snapshot(new SnapshotParameters(), null);
             File tempPng = File.createTempFile("lux_chart_", ".png");
             ImageIO.write(SwingFXUtils.fromFXImage(chartImage, null), "png", tempPng);
@@ -539,7 +533,7 @@ public class Lumina2 extends Application {
             PdfWriter.getInstance(document, new FileOutputStream(pdfFile));
             document.open();
 
-            // Statistici
+            
             double min = getMin();
             double max = getMax();
             double avg = getAverage();
@@ -552,13 +546,13 @@ public class Lumina2 extends Application {
             document.add(new Paragraph(String.format(Locale.US, "Valoare medie: %.2f lux", avg)));
             document.add(new Paragraph(" "));
 
-            // Imaginea graficului
+            
             Image chart = Image.getInstance(tempPng.getAbsolutePath());
             chart.scaleToFit(500, 300);
             document.add(chart);
             document.add(new Paragraph(" "));
 
-            // Tabel cu valori (mostre + marcaj schimbari bruste)
+           
             PdfPTable table = new PdfPTable(2);
             table.addCell("Mostra");
             table.addCell("Lux");
@@ -571,14 +565,14 @@ public class Lumina2 extends Application {
 
                 String text = String.format(Locale.US, "%.2f", value);
                 if (suddenChangeIndices.contains(index)) {
-                    text += " *"; // * = schimbare bruscă
+                    text += " *"; 
                 }
                 table.addCell(text);
             });
 
             document.add(table);
 
-            // Adăugăm mereu legenda (chiar dacă nu există * efectiv)
+            
             document.add(new Paragraph(" "));
             document.add(new Paragraph(
                     "* Valorile marcate indica mostre unde a fost detectata o schimbare brusca a luminii."
@@ -593,7 +587,7 @@ public class Lumina2 extends Application {
         }
     }
 
-    // Versiuni cu Stream – fără bucle + if în codul tău
+    
     private double getMin() {
         return luxHistory.isEmpty()
                 ? 0.0
